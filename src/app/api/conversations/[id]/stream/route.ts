@@ -66,32 +66,45 @@ export async function GET(
 
             if (message) {
               const data = JSON.stringify(message);
-              controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+              try {
+                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+              } catch {
+                cleanup();
+              }
             }
           }
         )
         .subscribe();
+
+      let cleanedUp = false;
+      const cleanup = () => {
+        if (cleanedUp) return;
+        cleanedUp = true;
+        clearInterval(heartbeat);
+        request.signal.removeEventListener("abort", cleanup);
+        try {
+          channel.unsubscribe();
+        } catch {}
+        try {
+          // channel.unsubscribe() alone leaves the underlying RealtimeClient
+          // WebSocket open, which leaks across SSE reconnects.
+          supabase.realtime.disconnect();
+        } catch {}
+        try {
+          controller.close();
+        } catch {}
+      };
 
       // Heartbeat to keep connection alive
       const heartbeat = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(`: heartbeat\n\n`));
         } catch {
-          // Stream might be closed
-          clearInterval(heartbeat);
+          cleanup();
         }
       }, 30000);
 
-      // Cleanup on abort
-      request.signal.addEventListener("abort", () => {
-        clearInterval(heartbeat);
-        channel.unsubscribe();
-        try {
-          controller.close();
-        } catch {
-          // Stream might already be closed
-        }
-      });
+      request.signal.addEventListener("abort", cleanup);
     },
   });
 
