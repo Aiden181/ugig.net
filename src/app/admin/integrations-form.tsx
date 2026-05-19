@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,9 +34,19 @@ const KIND_META: Record<IntegrationKind, { label: string; defaultName: string; w
   },
 };
 
-function webhookUrlFor(kind: IntegrationKind): string {
-  if (typeof window === "undefined") return KIND_META[kind].webhookPath;
-  return `${window.location.origin}${KIND_META[kind].webhookPath}`;
+function useWebhookOrigin(): string {
+  // Resolve window.location.origin after mount so SSR and the first
+  // client render emit identical HTML. Reading window directly in
+  // render causes a hydration mismatch under React 19, which Next
+  // 15+/16 treats as a hard client-side crash. setState-in-effect is
+  // the intended pattern here — there's no external subscription to
+  // hang off of, just a one-shot post-hydration read.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrigin(window.location.origin);
+  }, []);
+  return origin;
 }
 
 export function IntegrationsManager({
@@ -49,6 +59,7 @@ export function IntegrationsManager({
   const [items, setItems] = useState<Integration[]>(initial);
   const [kind, setKind] = useState<IntegrationKind>("crawlproof");
   const [name, setName] = useState(KIND_META.crawlproof.defaultName);
+  const origin = useWebhookOrigin();
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -102,7 +113,7 @@ export function IntegrationsManager({
         </h3>
         <div className="mt-2 space-y-2">
           {(Object.keys(KIND_META) as IntegrationKind[]).map((k) => {
-            const url = webhookUrlFor(k);
+            const url = `${origin}${KIND_META[k].webhookPath}`;
             return (
               <div key={k}>
                 <div className="mb-1 text-sm font-medium">
