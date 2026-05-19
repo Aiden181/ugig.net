@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Header } from "@/components/layout/Header";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const metadata = {
@@ -30,30 +31,36 @@ export default async function BlogIndex() {
   const posts = (data ?? []) as Row[];
 
   return (
-    <main className="mx-auto max-w-3xl px-4 sm:px-6 py-12">
-      <h1 className="text-4xl font-extrabold">Blog</h1>
-      <p className="mt-2 text-muted-foreground">
-        Tips on freelancing, AI-assisted work, and the gig economy.
-      </p>
-      {posts.length === 0 ? (
-        <p className="mt-10 text-sm text-muted-foreground">
-          No posts yet — check back soon.
+    <>
+      <Header />
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-12 text-foreground">
+        <h1 className="text-4xl font-extrabold">Blog</h1>
+        <p className="mt-2 text-muted-foreground">
+          Tips on freelancing, AI-assisted work, and the gig economy.
         </p>
-      ) : (
-        <ul className="mt-10 space-y-6">
-          {posts.map((p) => (
-            <li key={p.slug} className="rounded-lg border bg-card p-5">
-              <Link href={`/blog/${p.slug}`} className="block">
-                <h2 className="text-xl font-bold">{p.title}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {p.published_at.slice(0, 10)}
-                  {p.meta_description ? ` · ${p.meta_description}` : ""}
-                </p>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </main>
+        {posts.length === 0 ? (
+          <p className="mt-10 text-sm text-muted-foreground">
+            No posts yet — check back soon.
+          </p>
+        ) : (
+          <ul className="mt-10 space-y-6">
+            {posts.map((p) => (
+              <li key={p.slug} className="rounded-lg border bg-card p-5">
+                <Link
+                  href={`/blog/${p.slug}`}
+                  className="block text-foreground hover:text-primary transition-colors"
+                >
+                  <h2 className="text-xl font-bold">{p.title}</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {p.published_at.slice(0, 10)}
+                    {p.meta_description ? ` · ${p.meta_description}` : ""}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </main>
+    </>
   );
 }
