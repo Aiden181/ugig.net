@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
@@ -128,6 +129,8 @@ export async function POST(req: NextRequest) {
       integration_id: integration.id,
     });
   } catch {}
+
+  revalidatePath("/blog");
 
   return NextResponse.json({
     message: "Webhook processed successfully",

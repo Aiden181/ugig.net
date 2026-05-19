@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import { verifyAndParse } from "@profullstack/autoblog";
 import { gatePost } from "@profullstack/autoblog/quality";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -109,6 +110,9 @@ export async function POST(req: NextRequest) {
   } catch {
     // best-effort counter; ingestion already succeeded
   }
+
+  revalidatePath("/blog");
+  revalidatePath(`/blog/${post.slug}`);
 
   return NextResponse.json({
     message: "Webhook processed successfully",
