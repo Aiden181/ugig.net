@@ -292,8 +292,10 @@ export default async function GigPage({ params }: GigPageProps) {
       return "Rev Share TBD";
     }
 
-    if (min && max) return `${fmt(min)} - ${fmt(max)}${suffix}${!isSats ? coinNote : ""}`;
+    if (min && max && min !== max) return `${fmt(min)} - ${fmt(max)}${suffix}${!isSats ? coinNote : ""}`;
+    if (min && max) return `${fmt(min)}${suffix}${!isSats ? coinNote : ""}`;
     if (min) return `${fmt(min)}+${suffix}${!isSats ? coinNote : ""}`;
+    if (max) return `up to ${fmt(max)}${suffix}${!isSats ? coinNote : ""}`;
     return (gig.budget_type === "fixed" || gig.budget_type === "bounty") ? "Budget TBD" : "Rate TBD";
   };
 
