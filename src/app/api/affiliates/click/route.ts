@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { recordClick } from "@/lib/affiliates/tracking";
+import { randomUUID } from "crypto";
 
 /**
  * GET /api/affiliates/click?ugig_ref=CODE - Record an affiliate click and redirect
@@ -34,6 +35,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL("/affiliates", request.url));
     }
 
+    // Read or generate a persistent visitor ID from cookie
+    const existingVisitorId = request.cookies.get("ugig_visitor")?.value;
+    const visitorId = existingVisitorId || randomUUID();
+
     // Record the click
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -42,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     await recordClick(admin, {
       trackingCode: ref,
-      visitorId: undefined, // Set via cookie on client side
+      visitorId,
       ip,
       userAgent: request.headers.get("user-agent") || undefined,
       referer: request.headers.get("referer") || undefined,
@@ -79,6 +84,17 @@ export async function GET(request: NextRequest) {
       maxAge: cookieDays * 24 * 60 * 60,
       path: "/",
     });
+
+    // Persist visitor ID cookie (1 year) so repeat clicks can be deduplicated
+    if (!existingVisitorId) {
+      response.cookies.set("ugig_visitor", visitorId, {
+        httpOnly: true,
+        secure: true,
+        sameSite: "lax",
+        maxAge: 365 * 24 * 60 * 60, // 1 year
+        path: "/",
+      });
+    }
 
     return response;
   } catch (err) {
