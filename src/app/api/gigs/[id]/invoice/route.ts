@@ -84,7 +84,8 @@ export async function POST(
       return NextResponse.json({ error: "Gig not found" }, { status: 404 });
     }
 
-    // Get application — must be accepted, user must be the applicant (worker)
+    // Get application — must be accepted; the user must be either the worker
+    // (self-billing) or the gig poster (paying the worker directly).
     const { data: application } = await supabase
       .from("applications")
       .select("id, applicant_id, status, proposed_rate")
@@ -99,9 +100,12 @@ export async function POST(
       );
     }
 
-    if (application.applicant_id !== user.id) {
+    const isWorker = application.applicant_id === user.id;
+    const isPoster = gig.poster_id === user.id;
+
+    if (!isWorker && !isPoster) {
       return NextResponse.json(
-        { error: "Only the accepted worker can create an invoice" },
+        { error: "Only the worker or gig poster can create an invoice" },
         { status: 403 }
       );
     }
@@ -112,6 +116,9 @@ export async function POST(
         { status: 400 }
       );
     }
+
+    const workerId = application.applicant_id;
+    const posterId = gig.poster_id;
 
     const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://ugig.net";
     const regularBusinessId =
@@ -134,8 +141,9 @@ export async function POST(
         type: "gig_invoice",
         gig_id: gigId,
         application_id,
-        worker_id: user.id,
-        poster_id: gig.poster_id,
+        worker_id: workerId,
+        poster_id: posterId,
+        initiated_by: isPoster ? "poster" : "worker",
         invoice_currency: currency,
         payment_currency: paymentCurrency,
         platform: "ugig.net",
@@ -174,8 +182,8 @@ export async function POST(
       .insert({
         gig_id: gigId,
         application_id,
-        worker_id: user.id,
-        poster_id: gig.poster_id,
+        worker_id: workerId,
+        poster_id: posterId,
         coinpay_invoice_id: paymentId,
         amount_usd: amount,
         currency,
@@ -202,18 +210,25 @@ export async function POST(
       );
     }
 
-    // Notify the poster
-    const { data: workerProfile } = await supabase
+    // Notify the counterparty
+    const { data: actorProfile } = await supabase
       .from("profiles")
       .select("username, full_name")
       .eq("id", user.id)
       .single();
 
+    const actorName =
+      actorProfile?.full_name || actorProfile?.username || (isPoster ? "The client" : "A worker");
+    const recipientId = isPoster ? workerId : posterId;
+    const notificationBody = isPoster
+      ? `${actorName} prepared a $${amount} payment for "${gig.title}". Open the invoice to confirm.`
+      : `${actorName} sent you a $${amount} invoice for "${gig.title}".`;
+
     await supabase.from("notifications").insert({
-      user_id: gig.poster_id,
+      user_id: recipientId,
       type: "payment_received",
-      title: "Invoice received",
-      body: `${workerProfile?.full_name || workerProfile?.username || "A worker"} sent you a $${amount} invoice for "${gig.title}".`,
+      title: isPoster ? "Payment prepared" : "Invoice received",
+      body: notificationBody,
       data: {
         gig_id: gigId,
         invoice_id: invoice.id,

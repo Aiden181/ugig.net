@@ -107,7 +107,7 @@ describe("POST /api/gigs/[id]/invoice", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns 403 when user is not the worker", async () => {
+  it("returns 403 when user is neither worker nor poster", async () => {
     const sb = mockSupabase({
       gigs: {
         select: vi.fn().mockReturnThis(),
@@ -234,6 +234,76 @@ describe("POST /api/gigs/[id]/invoice", () => {
     expect(resolveSupportedPaymentCurrency).toHaveBeenCalledWith(
       "SOL",
       expect.any(Object)
+    );
+  });
+
+  it("allows the poster to create an invoice for the accepted worker", async () => {
+    const gig = { id: GIG_ID, title: "Test Gig", poster_id: POSTER_ID, payment_coin: "SOL" };
+    const application = { id: APP_ID, applicant_id: WORKER_ID, status: "accepted", proposed_rate: 200 };
+    const invoiceRecord = { id: "local-inv-2", metadata: {} };
+
+    let inserted: any = null;
+    const sb = mockSupabase({
+      gigs: {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: gig, error: null }),
+      },
+      applications: {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: application, error: null }),
+      },
+      gig_invoices: {
+        insert: vi.fn((row: any) => {
+          inserted = row;
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: invoiceRecord, error: null }),
+            }),
+          };
+        }),
+      },
+      profiles: {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: { username: "client", full_name: "The Client" }, error: null }),
+      },
+      notifications: {
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      },
+    });
+
+    (getAuthContext as any).mockResolvedValue({ user: { id: POSTER_ID }, supabase: sb });
+    (resolveSupportedPaymentCurrency as any).mockResolvedValue("sol");
+    (createPayment as any).mockResolvedValue({
+      success: true,
+      payment_id: "cp-pay-2",
+      address: "So11111111111111111111111111111111111111112",
+      amount_crypto: 1.0,
+      currency: "sol",
+      expires_at: "2026-05-22T12:00:00Z",
+      payment: {
+        id: "cp-pay-2",
+        payment_address: "So11111111111111111111111111111111111111112",
+      },
+    });
+
+    const res = await POST(
+      req({ application_id: APP_ID, amount: 200 }),
+      params
+    );
+
+    expect(res.status).toBe(201);
+    expect(inserted).toMatchObject({
+      worker_id: WORKER_ID,
+      poster_id: POSTER_ID,
+      amount_usd: 200,
+    });
+    expect(createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ initiated_by: "poster" }),
+      })
     );
   });
 });

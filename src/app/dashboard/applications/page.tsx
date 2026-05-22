@@ -88,11 +88,19 @@ export default async function MyApplicationsPage() {
             Back to dashboard
           </Link>
 
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold mb-2">My Applications</h1>
-            <p className="text-muted-foreground">
-              Track the status of your gig applications
-            </p>
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">My Applications</h1>
+              <p className="text-muted-foreground">
+                Track the status of your gig applications
+              </p>
+            </div>
+            <Link
+              href="/dashboard/invoices"
+              className="text-sm text-primary hover:underline whitespace-nowrap"
+            >
+              View invoices →
+            </Link>
           </div>
 
           {/* Stats */}
@@ -247,12 +255,22 @@ export default async function MyApplicationsPage() {
                             Applied {new Date(app.created_at).toLocaleDateString()}
                           </p>
                         </div>
-                        <Badge
-                          variant="secondary"
-                          className={`capitalize ${statusColors[app.status] || ""}`}
-                        >
-                          {app.status}
-                        </Badge>
+                        <div className="flex items-center gap-3">
+                          {app.status === "accepted" && (
+                            <Link
+                              href={`/gigs/${gig.id}`}
+                              className="text-sm text-primary hover:underline"
+                            >
+                              Send invoice
+                            </Link>
+                          )}
+                          <Badge
+                            variant="secondary"
+                            className={`capitalize ${statusColors[app.status] || ""}`}
+                          >
+                            {app.status}
+                          </Badge>
+                        </div>
                       </div>
                     </div>
                   );

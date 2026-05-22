@@ -14,6 +14,8 @@ import {
   FolderOpen,
   Megaphone,
   HandCoins,
+  Receipt,
+  Target,
 } from "lucide-react";
 import { FundingDashboard } from "@/components/funding/FundingDashboard";
 
@@ -320,6 +322,32 @@ export default async function DashboardPage() {
                   <h3 className="font-medium">My Applications</h3>
                   <p className="text-sm text-muted-foreground mt-1">
                     Track your job applications
+                  </p>
+                </Link>
+
+                <Link
+                  href="/dashboard/invoices"
+                  className="p-4 border border-border rounded-lg shadow-sm hover:shadow-md hover:border-green-500/40 hover:bg-green-500/5 transition-all duration-200"
+                >
+                  <div className="p-2.5 bg-green-500/10 rounded-xl w-fit mb-3">
+                    <Receipt className="h-5 w-5 text-green-500" />
+                  </div>
+                  <h3 className="font-medium">Invoices</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Pay accepted applicants and view invoices
+                  </p>
+                </Link>
+
+                <Link
+                  href="/dashboard/bounties"
+                  className="p-4 border border-border rounded-lg shadow-sm hover:shadow-md hover:border-pink-500/40 hover:bg-pink-500/5 transition-all duration-200"
+                >
+                  <div className="p-2.5 bg-pink-500/10 rounded-xl w-fit mb-3">
+                    <Target className="h-5 w-5 text-pink-500" />
+                  </div>
+                  <h3 className="font-medium">Bounties</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Post bounties and review submissions
                   </p>
                 </Link>
 
