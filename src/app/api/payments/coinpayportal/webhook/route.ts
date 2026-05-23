@@ -8,7 +8,7 @@ import { LIFETIME_THRESHOLD_USD } from "@/lib/funding";
 
 // POST /api/payments/coinpayportal/webhook - Handle CoinPayPortal webhooks
 export async function POST(request: NextRequest) {
-  return processCoinPayWebhook(request, process.env.COINPAY_UGIG_CRYPTO_WEBHOOK_SECRET);
+  return processCoinPayWebhook(request, process.env.COINPAY_FUNDING_WEBHOOK_SECRET);
 }
 
 export async function processCoinPayWebhook(request: NextRequest, webhookSecret: string | undefined) {
@@ -43,17 +43,26 @@ export async function processCoinPayWebhook(request: NextRequest, webhookSecret:
 
     switch (payload.type) {
       case "payment.confirmed": {
+        if (await handleFundingPaymentEvent(supabase, payload, "confirmed")) break;
         await handlePaymentConfirmed(supabase, payload);
         break;
       }
 
       case "payment.forwarded": {
+        if (await handleFundingPaymentEvent(supabase, payload, "forwarded")) break;
         await handlePaymentForwarded(supabase, payload);
         break;
       }
 
       case "payment.expired": {
+        if (await handleFundingPaymentEvent(supabase, payload, "expired")) break;
         await handlePaymentExpired(supabase, payload);
+        break;
+      }
+
+      case "payment.failed": {
+        if (await handleFundingPaymentEvent(supabase, payload, "failed")) break;
+        console.log(`Unhandled webhook event: ${payload.type}`);
         break;
       }
 
@@ -84,6 +93,36 @@ export async function processCoinPayWebhook(request: NextRequest, webhookSecret:
       { status: 500 }
     );
   }
+}
+
+async function handleFundingPaymentEvent(
+  supabase: ReturnType<typeof createServiceClient>,
+  payload: CoinPayWebhookPayload,
+  status: "confirmed" | "forwarded" | "expired" | "failed"
+): Promise<boolean> {
+  const now = new Date().toISOString();
+  const amountCrypto =
+    typeof payload.data.amount_crypto === "string"
+      ? parseFloat(payload.data.amount_crypto)
+      : payload.data.amount_crypto ?? null;
+  const update: Record<string, unknown> = {
+    status,
+    updated_at: now,
+    tx_hash: payload.data.tx_hash ?? null,
+  };
+  if (amountCrypto !== null) update.amount_crypto = amountCrypto;
+  if (status === "confirmed" || status === "forwarded") update.paid_at = now;
+
+  const { error } = await (supabase.from("funding_payments") as any)
+    .update(update)
+    .eq("coinpay_payment_id", payload.data.payment_id);
+
+  if (error) {
+    console.error("[coinpay webhook] funding update failed:", error);
+    throw new Error("Funding payment update failed");
+  }
+
+  return payload.data.metadata?.type === "funding";
 }
 
 async function handlePaymentConfirmed(

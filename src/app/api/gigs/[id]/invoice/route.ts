@@ -121,12 +121,10 @@ export async function POST(
     const posterId = gig.poster_id;
 
     const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://ugig.net";
-    const regularBusinessId =
-      process.env.COINPAY_UGIG_BUSINESS_ID ||
-      process.env.COINPAY_MERCHANT_ID;
+    const businessId = process.env.COINPAY_MERCHANT_ID;
     const paymentCurrency = await resolveSupportedPaymentCurrency(
       (gig as any).payment_coin,
-      { business_id: regularBusinessId }
+      { business_id: businessId }
     );
 
     // Create a direct CoinPay payment request instead of a hosted invoice. The
@@ -135,7 +133,7 @@ export async function POST(
       amount_usd: amount,
       currency: paymentCurrency,
       description: notes || `Invoice for gig: ${gig.title}`,
-      business_id: regularBusinessId,
+      business_id: businessId,
       redirect_url: `${appUrl}/gigs/${gigId}?invoice=paid`,
       metadata: {
         type: "gig_invoice",

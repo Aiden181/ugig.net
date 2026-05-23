@@ -80,16 +80,14 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const regularBusinessId =
-      process.env.COINPAY_UGIG_BUSINESS_ID ||
-      process.env.COINPAY_MERCHANT_ID;
+    const businessId = process.env.COINPAY_MERCHANT_ID;
 
-    // Create payment with CoinPayPortal (regular ugig business)
+    // Create payment with the site-wide CoinPay business.
     const paymentResult = await createPayment({
       amount_usd: amount,
       currency: currency as SupportedCurrency,
       description,
-      business_id: regularBusinessId,
+      business_id: businessId,
       redirect_url: `${process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://ugig.net"}/settings/billing?payment=success`,
       metadata: {
         user_id: user.id,

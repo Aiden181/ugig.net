@@ -5,6 +5,7 @@ import {
   sendInvoice,
   getBusinessWalletCurrencies,
   getSupportedCoins,
+  preferredCoinToPaymentCurrency,
   resolveSupportedPaymentCurrency,
   verifyWebhookSignature,
   SUPPORTED_CURRENCIES,
@@ -188,14 +189,25 @@ describe("CoinPayPortal supported coins API", () => {
     ]);
   });
 
-  it("resolves a preferred gig coin from active CoinPay wallets", async () => {
+  it("maps preferred gig coins without fetching CoinPay wallets", async () => {
     await expect(resolveSupportedPaymentCurrency("SOL")).resolves.toBe("sol");
+    expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("rejects preferred gig coins not configured in CoinPay", async () => {
-    await expect(resolveSupportedPaymentCurrency("ETH")).rejects.toThrow(
-      "CoinPayPortal does not have an active ETH wallet configured"
+  it("maps known preferred coin labels to payment currencies", () => {
+    expect(preferredCoinToPaymentCurrency("BTC")).toBe("btc");
+    expect(preferredCoinToPaymentCurrency("SOL")).toBe("sol");
+    expect(preferredCoinToPaymentCurrency("ETH")).toBe("eth");
+    expect(preferredCoinToPaymentCurrency("POL")).toBe("pol");
+    expect(preferredCoinToPaymentCurrency("USDT")).toBe("usdt");
+    expect(preferredCoinToPaymentCurrency("USDC")).toBe("usdc_sol");
+  });
+
+  it("rejects preferred coins CoinPayPortal payment creation cannot represent", async () => {
+    await expect(resolveSupportedPaymentCurrency("LN")).rejects.toThrow(
+      "CoinPayPortal payments do not support LN"
     );
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 
@@ -209,9 +221,6 @@ describe("CoinPayPortal invoice API", () => {
   beforeEach(() => {
     process.env.COINPAY_API_KEY = "cp_live_" + "a".repeat(32);
     process.env.COINPAY_MERCHANT_ID = "biz_123";
-    delete process.env.COINPAY_UGIG_BUSINESS_ID;
-    delete process.env.COINPAY_BUSINESS_ID;
-    delete process.env.BUSINESS_ID;
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -278,7 +287,7 @@ describe("CoinPayPortal invoice API", () => {
     );
   });
 
-  it("uses UGig-specific business id env aliases before the generic merchant id", async () => {
+  it("uses COINPAY_MERCHANT_ID as the site-wide business id", async () => {
     process.env.COINPAY_UGIG_BUSINESS_ID = "biz_ugig";
     process.env.COINPAY_BUSINESS_ID = "biz_coinpay";
     process.env.BUSINESS_ID = "biz_generic";
@@ -289,7 +298,7 @@ describe("CoinPayPortal invoice API", () => {
     expect(fetch).toHaveBeenCalledWith(
       "https://coinpayportal.com/api/invoices",
       expect.objectContaining({
-        body: expect.stringContaining('"business_id":"biz_ugig"'),
+        body: expect.stringContaining('"business_id":"biz_merchant"'),
       })
     );
   });

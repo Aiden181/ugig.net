@@ -4,7 +4,7 @@ const COINPAY_API_URL = "https://coinpayportal.com/api";
 
 export interface CoinPayWebhookPayload {
   id: string;
-  type: "payment.confirmed" | "payment.forwarded" | "payment.expired" | "escrow.funded" | "escrow.released" | "escrow.refunded" | "escrow.disputed";
+  type: "payment.confirmed" | "payment.forwarded" | "payment.expired" | "payment.failed" | "escrow.funded" | "escrow.released" | "escrow.refunded" | "escrow.disputed";
   data: {
     payment_id: string;
     status: string;
@@ -150,7 +150,7 @@ export async function createPayment(
       currency: options.currency,
       description: options.description,
       redirect_url: options.redirect_url,
-      webhook_url: `${process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://ugig.net"}/api/payments/coinpayportal/webhook`,
+      webhook_url: `${process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://ugig.net"}/api/webhooks/coinpay`,
       metadata: options.metadata,
     }),
   });
@@ -230,21 +230,23 @@ export function coinToPaymentCurrency(coin: SupportedCoin): SupportedCurrency | 
   return null;
 }
 
-function coinMatchesPreference(
-  coin: SupportedCoin | BusinessWalletCurrency,
-  preferredCoin: string
-): boolean {
-  const preferred = normalizeCoinSymbol(preferredCoin);
-  const record = coin as Record<string, unknown>;
-  const candidates = [
-    record.symbol,
-    record.code,
-    record.currency,
-    record.id,
-    record.name,
-  ].map((value) => (typeof value === "string" ? normalizeCoinSymbol(value) : ""));
+export function preferredCoinToPaymentCurrency(
+  preferredCoin?: string | null
+): SupportedCurrency | null {
+  const directCurrency = normalizeCurrencyKey(preferredCoin);
+  if (isSupportedCurrency(directCurrency)) return directCurrency;
 
-  return candidates.includes(preferred);
+  const symbol = normalizeCoinSymbol(preferredCoin);
+  if (!symbol) return null;
+
+  if (symbol === "BTC") return "btc";
+  if (symbol === "ETH") return "eth";
+  if (symbol === "POL" || symbol === "MATIC") return "pol";
+  if (symbol === "SOL") return "sol";
+  if (symbol === "USDT") return "usdt";
+  if (symbol === "USDC") return "usdc_sol";
+
+  return null;
 }
 
 function getStringValue(record: Record<string, unknown>, keys: string[]): string | null {
@@ -396,19 +398,15 @@ export async function resolveSupportedPaymentCurrency(
   preferredCoin?: string | null,
   options: { business_id?: string } = {}
 ): Promise<SupportedCurrency> {
+  const preferredCurrency = preferredCoinToPaymentCurrency(preferredCoin);
+  if (preferredCurrency) return preferredCurrency;
+  if (preferredCoin) {
+    throw new Error(`CoinPayPortal payments do not support ${preferredCoin}`);
+  }
+
   const coins = await getBusinessWalletCurrencies({
     business_id: options.business_id,
   });
-
-  if (preferredCoin) {
-    const preferred = coins.find((coin) => coinMatchesPreference(coin, preferredCoin));
-    const currency = preferred ? coinToPaymentCurrency(preferred) : null;
-    if (currency) return currency;
-
-    throw new Error(
-      `CoinPayPortal does not have an active ${preferredCoin} wallet configured`
-    );
-  }
 
   const firstSupported = coins.map(coinToPaymentCurrency).find(Boolean);
   if (firstSupported) return firstSupported;
@@ -531,7 +529,7 @@ export async function createEscrow(
       beneficiary_email: options.beneficiary_email,
       description: options.description,
       auto_release_hours: options.auto_release_hours,
-      webhook_url: options.webhook_url || `${appUrl}/api/payments/coinpayportal/webhook`,
+      webhook_url: options.webhook_url || `${appUrl}/api/webhooks/coinpay`,
       metadata: options.metadata,
     }),
   });
@@ -603,11 +601,7 @@ export async function createInvoice(
   options: CreateInvoiceOptions
 ): Promise<InvoiceResponse> {
   const apiKey = process.env.COINPAY_API_KEY;
-  const merchantId =
-    process.env.COINPAY_UGIG_BUSINESS_ID ||
-    process.env.COINPAY_BUSINESS_ID ||
-    process.env.BUSINESS_ID ||
-    process.env.COINPAY_MERCHANT_ID;
+  const merchantId = process.env.COINPAY_MERCHANT_ID;
 
   if (!apiKey || !merchantId) {
     throw new Error("CoinPayPortal credentials not configured");

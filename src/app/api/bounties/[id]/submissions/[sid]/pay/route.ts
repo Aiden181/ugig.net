@@ -61,9 +61,7 @@ export async function POST(
       process.env.APP_URL ||
       process.env.NEXT_PUBLIC_APP_URL ||
       "https://ugig.net";
-    const businessId =
-      process.env.COINPAY_UGIG_BUSINESS_ID ||
-      process.env.COINPAY_MERCHANT_ID;
+    const businessId = process.env.COINPAY_MERCHANT_ID;
     const paymentCurrency = await resolveSupportedPaymentCurrency(
       bounty.payment_coin,
       { business_id: businessId }
